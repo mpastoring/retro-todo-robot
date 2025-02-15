@@ -23,8 +23,15 @@ const Index = () => {
         body: { task }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Function invocation error:', error);
+        throw error;
+      }
       
+      if (!data?.subtasks) {
+        throw new Error('No subtasks returned from the function');
+      }
+
       const newSubtasks = data.subtasks.map((text: string) => ({
         id: crypto.randomUUID(),
         text,
@@ -73,14 +80,21 @@ const Index = () => {
   useEffect(() => {
     const fetchLatestSubtasks = async () => {
       try {
+        // Use maybeSingle() instead of single() to handle empty results gracefully
         const { data: latestTask, error: taskError } = await supabase
           .from('tasks')
           .select('id')
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (taskError) throw taskError;
+        
+        // If no task exists yet, just return without setting any subtasks
+        if (!latestTask) {
+          setSubtasks([]);
+          return;
+        }
 
         const { data: subtasksData, error: subtasksError } = await supabase
           .from('subtasks')
@@ -89,13 +103,18 @@ const Index = () => {
 
         if (subtasksError) throw subtasksError;
 
-        setSubtasks(subtasksData.map(st => ({
+        setSubtasks((subtasksData || []).map(st => ({
           id: st.id,
           text: st.text,
-          completed: st.completed,
+          completed: st.completed || false,
         })));
       } catch (error) {
         console.error('Error fetching subtasks:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch existing tasks.",
+          variant: "destructive",
+        });
       }
     };
 
