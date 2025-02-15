@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import TaskInput from '@/components/TaskInput';
 import SubtaskList from '@/components/SubtaskList';
 import { useToast } from "@/components/ui/use-toast";
@@ -44,7 +44,7 @@ const Index = () => {
     }
   };
 
-  const toggleSubtask = (id: string) => {
+  const toggleSubtask = async (id: string) => {
     setSubtasks(prev =>
       prev.map(subtask =>
         subtask.id === id
@@ -52,7 +52,55 @@ const Index = () => {
           : subtask
       )
     );
+
+    try {
+      const { error } = await supabase
+        .from('subtasks')
+        .update({ completed: !subtasks.find(s => s.id === id)?.completed })
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating subtask:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update subtask status.",
+        variant: "destructive",
+      });
+    }
   };
+
+  useEffect(() => {
+    const fetchLatestSubtasks = async () => {
+      try {
+        const { data: latestTask, error: taskError } = await supabase
+          .from('tasks')
+          .select('id')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (taskError) throw taskError;
+
+        const { data: subtasksData, error: subtasksError } = await supabase
+          .from('subtasks')
+          .select('*')
+          .eq('task_id', latestTask.id);
+
+        if (subtasksError) throw subtasksError;
+
+        setSubtasks(subtasksData.map(st => ({
+          id: st.id,
+          text: st.text,
+          completed: st.completed,
+        })));
+      } catch (error) {
+        console.error('Error fetching subtasks:', error);
+      }
+    };
+
+    fetchLatestSubtasks();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-green-50 p-6">

@@ -9,7 +9,59 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      subtasks: {
+        Row: {
+          completed: boolean | null
+          created_at: string
+          id: string
+          task_id: string | null
+          text: string
+        }
+        Insert: {
+          completed?: boolean | null
+          created_at?: string
+          id?: string
+          task_id?: string | null
+          text: string
+        }
+        Update: {
+          completed?: boolean | null
+          created_at?: string
+          id?: string
+          task_id?: string | null
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subtasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          completed: boolean | null
+          created_at: string
+          id: string
+          title: string
+        }
+        Insert: {
+          completed?: boolean | null
+          created_at?: string
+          id?: string
+          title: string
+        }
+        Update: {
+          completed?: boolean | null
+          created_at?: string
+          id?: string
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

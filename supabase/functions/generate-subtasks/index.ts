@@ -1,60 +1,95 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+import { Configuration, OpenAIApi } from 'https://esm.sh/openai@3.3.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
+
+interface Task {
+  id: string;
+  title: string;
+  completed: boolean;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { task } = await req.json();
+    const { task } = await req.json()
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a task breakdown assistant. Given a main task, break it down into 4-6 clear, actionable subtasks. Return only the subtasks as a numbered list, nothing else.'
-          },
-          {
-            role: 'user',
-            content: task
-          }
-        ],
-      }),
-    });
+    // Initialize OpenAI
+    const configuration = new Configuration({
+      apiKey: Deno.env.get('OPENAI_API_KEY'),
+    })
+    const openai = new OpenAIApi(configuration)
 
-    const data = await response.json();
-    const subtasksText = data.choices[0].message.content;
-    
-    // Convert the numbered list into an array of subtasks
-    const subtasks = subtasksText
+    // Generate subtasks using OpenAI
+    const completion = await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          "role": "system",
+          "content": "You are a helpful task breakdown assistant. Break down the given task into 3-5 concrete, actionable subtasks. Return only the subtasks as a numbered list, nothing else."
+        },
+        {
+          "role": "user",
+          "content": task
+        }
+      ],
+    })
+
+    const response = completion.data.choices[0].message?.content || ''
+    const subtasks = response
       .split('\n')
       .filter(line => line.trim())
-      .map(line => line.replace(/^\d+\.\s*/, ''));
+      .map(line => line.replace(/^\d+\.\s*/, '').trim())
 
-    return new Response(JSON.stringify({ subtasks }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // Initialize Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Insert task
+    const { data: taskData, error: taskError } = await supabaseClient
+      .from('tasks')
+      .insert([{ title: task }])
+      .select()
+      .single()
+
+    if (taskError) throw taskError
+
+    // Insert subtasks
+    const subtasksToInsert = subtasks.map(text => ({
+      task_id: taskData.id,
+      text: text
+    }))
+
+    const { error: subtasksError } = await supabaseClient
+      .from('subtasks')
+      .insert(subtasksToInsert)
+
+    if (subtasksError) throw subtasksError
+
+    return new Response(
+      JSON.stringify({ subtasks }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      },
+    )
   } catch (error) {
-    console.error('Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      },
+    )
   }
-});
+})
