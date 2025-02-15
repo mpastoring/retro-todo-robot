@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import TaskInput from '@/components/TaskInput';
 import SubtaskList from '@/components/SubtaskList';
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Subtask {
   id: string;
@@ -18,17 +19,12 @@ const Index = () => {
   const generateSubtasks = async (task: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/generate-subtasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ task }),
+      const { data, error } = await supabase.functions.invoke('generate-subtasks', {
+        body: { task }
       });
 
-      if (!response.ok) throw new Error('Failed to generate subtasks');
+      if (error) throw error;
       
-      const data = await response.json();
       const newSubtasks = data.subtasks.map((text: string) => ({
         id: crypto.randomUUID(),
         text,
@@ -37,6 +33,7 @@ const Index = () => {
       
       setSubtasks(newSubtasks);
     } catch (error) {
+      console.error('Error generating subtasks:', error);
       toast({
         title: "Error",
         description: "Failed to generate subtasks. Please try again.",
