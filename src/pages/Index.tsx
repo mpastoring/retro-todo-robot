@@ -5,7 +5,7 @@ import SubtaskList from '@/components/SubtaskList';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Rotate } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 interface Subtask {
   id: string;
@@ -166,7 +166,7 @@ const Index = () => {
               variant="outline"
               className="font-mono text-purple-600 border-purple-200 hover:bg-purple-50"
             >
-              <Rotate className="w-4 h-4 mr-2" />
+              <RotateCcw className="w-4 h-4 mr-2" />
               Reset All
             </Button>
           </div>
