@@ -4,6 +4,8 @@ import TaskInput from '@/components/TaskInput';
 import SubtaskList from '@/components/SubtaskList';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Rotate } from "lucide-react";
 
 interface Subtask {
   id: string;
@@ -14,10 +16,12 @@ interface Subtask {
 const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [currentTask, setCurrentTask] = useState<string>("");
   const { toast } = useToast();
 
   const generateSubtasks = async (task: string) => {
     setIsLoading(true);
+    setCurrentTask(task);
     try {
       const { data, error } = await supabase.functions.invoke('generate-subtasks', {
         body: { task }
@@ -51,6 +55,15 @@ const Index = () => {
     }
   };
 
+  const resetAll = () => {
+    setSubtasks([]);
+    setCurrentTask("");
+    toast({
+      title: "Reset successful",
+      description: "All tasks have been cleared.",
+    });
+  };
+
   const toggleSubtask = async (id: string) => {
     setSubtasks(prev =>
       prev.map(subtask =>
@@ -80,21 +93,21 @@ const Index = () => {
   useEffect(() => {
     const fetchLatestSubtasks = async () => {
       try {
-        // Use maybeSingle() instead of single() to handle empty results gracefully
         const { data: latestTask, error: taskError } = await supabase
           .from('tasks')
-          .select('id')
+          .select('id, title')
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (taskError) throw taskError;
         
-        // If no task exists yet, just return without setting any subtasks
         if (!latestTask) {
           setSubtasks([]);
           return;
         }
+
+        setCurrentTask(latestTask.title);
 
         const { data: subtasksData, error: subtasksError } = await supabase
           .from('subtasks')
@@ -134,7 +147,30 @@ const Index = () => {
         </header>
 
         <TaskInput onSubmit={generateSubtasks} isLoading={isLoading} />
+        
+        {currentTask && (
+          <div className="mt-8 mb-4">
+            <div className="bg-white/80 p-4 rounded-lg border border-purple-200">
+              <h2 className="font-mono text-lg font-semibold text-purple-800 mb-2">Current Task:</h2>
+              <p className="font-mono text-purple-600">{currentTask}</p>
+            </div>
+          </div>
+        )}
+
         <SubtaskList subtasks={subtasks} onToggle={toggleSubtask} />
+
+        {(currentTask || subtasks.length > 0) && (
+          <div className="mt-8 flex justify-center">
+            <Button
+              onClick={resetAll}
+              variant="outline"
+              className="font-mono text-purple-600 border-purple-200 hover:bg-purple-50"
+            >
+              <Rotate className="w-4 h-4 mr-2" />
+              Reset All
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
